@@ -508,7 +508,10 @@ static void read_num(ParseInfo pi) {
             zero1 = true;
         }
 
-        for (; '0' <= *pi->cur && *pi->cur <= '9'; pi->cur++, dec_cnt++) {
+        for (; '0' <= *pi->cur && *pi->cur <= '9'; pi->cur++) {
+            if (0 < ni.i) {
+                dec_cnt++;
+            }
             if (!(INT64_MAX <= ni.i || DEC_MAX < dec_cnt)) {
                 int d = (*pi->cur - '0');
                 ni.i = ni.i * 10 + d;
