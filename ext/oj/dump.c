@@ -19,6 +19,7 @@
 #include "oj.h"
 #include "trace.h"
 #include "util.h"
+#include "fpconv.h"
 
 // Workaround in case INFINITY is not defined in math.h or if the OS is CentOS
 #define OJ_INFINITY (1.0 / 0.0)
@@ -1173,14 +1174,7 @@ void oj_dump_float(VALUE obj, int depth, Out out, bool as_ok) {
     } else if (d == (double)(long long int)d) {
         cnt = snprintf(buf, sizeof(buf), "%.1f", d);
     } else if (0 == out->opts->float_prec) {
-        volatile VALUE rstr = rb_funcall(obj, oj_to_s_id, 0);
-
-        cnt = (int)RSTRING_LEN(rstr);
-        if ((int)sizeof(buf) <= cnt) {
-            cnt = sizeof(buf) - 1;
-        }
-        memcpy(buf, RSTRING_PTR(rstr), cnt);
-        buf[cnt] = '\0';
+        cnt = fpconv_dtoa(d, buf);
     } else {
         cnt = oj_dump_float_printf(buf, sizeof(buf), obj, d, out->opts->float_fmt);
     }

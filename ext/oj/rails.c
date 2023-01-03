@@ -7,6 +7,7 @@
 #include "encode.h"
 #include "trace.h"
 #include "util.h"
+#include "fpconv.h"
 
 #define OJ_INFINITY (1.0 / 0.0)
 
@@ -1208,16 +1209,11 @@ static void dump_float(VALUE obj, int depth, Out out, bool as_ok) {
         } else if (oj_rails_float_opt) {
             cnt = oj_dump_float_printf(buf, sizeof(buf), obj, d, "%0.16g");
         } else {
-            volatile VALUE rstr = rb_funcall(obj, oj_to_s_id, 0);
-
-            strcpy(buf, RSTRING_PTR(rstr));
-            cnt = (int)RSTRING_LEN(rstr);
+            cnt = fpconv_dtoa(d, buf);
         }
     }
     assure_size(out, cnt);
-    for (b = buf; '\0' != *b; b++) {
-        *out->cur++ = *b;
-    }
+    APPEND_CHARS(out->cur, buf, cnt);
     *out->cur = '\0';
 }
 
