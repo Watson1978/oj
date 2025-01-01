@@ -75,16 +75,8 @@ inline static void call_error(const char *msg, ParseInfo pi, const char *file, i
 }
 
 inline static void next_non_white(ParseInfo pi) {
-    for (; 1; pi->s++) {
-        switch (*pi->s) {
-        case ' ':
-        case '\t':
-        case '\f':
-        case '\n':
-        case '\r': break;
-        case '/': skip_comment(pi); break;
-        default: return;
-        }
+    while (oj_white_chars_table[(unsigned char)*pi->s]) {
+        pi->s++;
     }
 }
 
@@ -174,6 +166,7 @@ static void read_next(ParseInfo pi, const char *key) {
     case 't': read_true(pi, key); break;
     case 'f': read_false(pi, key); break;
     case 'n': read_nil(pi, key); break;
+    case '/': skip_comment(pi); break;
     case '\0': return;
     default: return;
     }

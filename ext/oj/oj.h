@@ -235,6 +235,8 @@ typedef struct _leaf {
     uint8_t value_type;
 } *Leaf;
 
+extern const unsigned char oj_white_chars_table[];
+
 extern VALUE oj_saj_parse(int argc, VALUE *argv, VALUE self);
 extern VALUE oj_sc_parse(int argc, VALUE *argv, VALUE self);
 
