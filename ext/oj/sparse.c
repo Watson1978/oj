@@ -592,8 +592,9 @@ static void array_start(ParseInfo pi) {
 }
 
 static void array_end(ParseInfo pi) {
-    Val array = stack_pop(&pi->stack);
+    Val array = stack_peek(&pi->stack);
 
+    // leave array on stack until just before
     if (0 == array) {
         oj_set_error_at(pi, oj_parse_error_class, __FILE__, __LINE__, "unexpected array close");
     } else if (NEXT_ARRAY_COMMA != array->next && NEXT_ARRAY_NEW != array->next) {
@@ -605,6 +606,7 @@ static void array_end(ParseInfo pi) {
                         oj_stack_next_string(array->next));
     } else {
         pi->end_array(pi);
+        stack_pop(&pi->stack);
         add_value(pi, array->val);
     }
 }

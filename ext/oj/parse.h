@@ -89,6 +89,7 @@ extern VALUE oj_pi_sparse(int argc, VALUE *argv, ParseInfo pi, int fd);
 
 extern VALUE oj_cstr_to_value(const char *str, size_t len, size_t cache_str);
 extern VALUE oj_calc_hash_key(ParseInfo pi, Val parent);
+extern void  oj_array_append(ParseInfo pi, VALUE value);
 
 static inline void parse_info_init(ParseInfo pi) {
     // Zeroing the whole struct costs more than parsing a small document: the

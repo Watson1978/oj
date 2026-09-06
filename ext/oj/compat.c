@@ -151,25 +151,27 @@ static void hash_set_value(ParseInfo pi, Val parent, VALUE value) {
     TRACE_PARSE_CALL(pi->options.trace, "set_value", pi, value);
 }
 
+// With the default Array class the elements are buffered and the Array is
+// built at array_end.
 static VALUE start_array(ParseInfo pi) {
     if (Qnil != pi->options.array_class) {
         return rb_class_new_instance(0, NULL, pi->options.array_class);
     }
     TRACE_PARSE_IN(pi->options.trace, "start_array", pi);
-    return rb_ary_new();
+    return Qnil;
 }
 
 static void array_append_num(ParseInfo pi, NumInfo ni) {
     Val            parent = stack_peek(&pi->stack);
     volatile VALUE rval   = oj_num_as_value(ni);
 
-    if (!oj_use_array_alt && rb_cArray != rb_obj_class(parent->val)) {
+    if (Qnil != parent->val && !oj_use_array_alt && rb_cArray != rb_obj_class(parent->val)) {
         // The rb_ary_push would still work but the unit tests for the json
         // gem require the less efficient << method be called to push the
         // values.
         rb_funcall(parent->val, rb_intern("<<"), 1, rval);
     } else {
-        rb_ary_push(parent->val, rval);
+        oj_array_append(pi, rval);
     }
     TRACE_PARSE_CALL(pi->options.trace, "append_number", pi, rval);
 }
@@ -181,11 +183,11 @@ static void array_append_cstr(ParseInfo pi, const char *str, size_t len, const c
         VALUE clas = oj_rxclass_match(&pi->options.str_rx, str, len);
 
         if (Qnil != clas) {
-            rb_ary_push(stack_peek(&pi->stack)->val, rb_funcall(clas, oj_json_create_id, 1, rstr));
+            oj_array_append(pi, rb_funcall(clas, oj_json_create_id, 1, rstr));
             return;
         }
     }
-    rb_ary_push(stack_peek(&pi->stack)->val, rstr);
+    oj_array_append(pi, rstr);
     TRACE_PARSE_CALL(pi->options.trace, "append_string", pi, rstr);
 }
 

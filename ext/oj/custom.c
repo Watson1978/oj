@@ -1011,10 +1011,9 @@ static void hash_set_value(ParseInfo pi, Val kval, VALUE value) {
 }
 
 static void array_append_num(ParseInfo pi, NumInfo ni) {
-    Val            parent = stack_peek(&pi->stack);
-    volatile VALUE rval   = oj_num_as_value(ni);
+    volatile VALUE rval = oj_num_as_value(ni);
 
-    rb_ary_push(parent->val, rval);
+    oj_array_append(pi, rval);
     TRACE_PARSE_CALL(pi->options.trace, "append_number", pi, rval);
 }
 
@@ -1025,11 +1024,11 @@ static void array_append_cstr(ParseInfo pi, const char *str, size_t len, const c
         VALUE clas = oj_rxclass_match(&pi->options.str_rx, str, len);
 
         if (Qnil != clas) {
-            rb_ary_push(stack_peek(&pi->stack)->val, rb_funcall(clas, oj_json_create_id, 1, rstr));
+            oj_array_append(pi, rb_funcall(clas, oj_json_create_id, 1, rstr));
             return;
         }
     }
-    rb_ary_push(stack_peek(&pi->stack)->val, rstr);
+    oj_array_append(pi, rstr);
     TRACE_PARSE_CALL(pi->options.trace, "append_string", pi, rstr);
 }
 

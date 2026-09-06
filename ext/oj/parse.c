@@ -778,9 +778,25 @@ static void array_start(ParseInfo pi) {
     stack_push(&pi->stack, v, NEXT_ARRAY_NEW);
 }
 
-static void array_end(ParseInfo pi) {
-    Val array = stack_pop(&pi->stack);
+// An open array whose val is still Qnil collects its elements in the stack
+// pair buffer and becomes an Array at the closing bracket. A real object
+// there (an :array_class instance or an array registered for circular
+// references) is appended to directly.
+void oj_array_append(ParseInfo pi, VALUE value) {
+    Val parent = stack_peek(&pi->stack);
 
+    if (Qnil == parent->val) {
+        stack_value_push(&pi->stack, value);
+        parent->pcnt++;
+    } else {
+        rb_ary_push(parent->val, value);
+    }
+}
+
+static void array_end(ParseInfo pi) {
+    Val array = stack_peek(&pi->stack);
+
+    // leave array on stack until just before
     if (0 == array) {
         oj_set_error_at(pi, oj_parse_error_class, __FILE__, __LINE__, "unexpected array close");
     } else if (NEXT_ARRAY_COMMA != array->next && NEXT_ARRAY_NEW != array->next) {
@@ -792,6 +808,7 @@ static void array_end(ParseInfo pi) {
                         oj_stack_next_string(array->next));
     } else {
         pi->end_array(pi);
+        stack_pop(&pi->stack);
         add_value(pi, array->val);
     }
 }
@@ -1124,11 +1141,20 @@ void oj_set_error_at(ParseInfo pi, VALUE err_clas, const char *file, int line, c
                 memcpy(p, vp->key, vp->klen);
                 p += vp->klen;
             } else {
-                if (RUBY_T_ARRAY == rb_type(vp->val)) {
+                long len = -1;
+
+                if (Qnil == vp->val) {
+                    if (NEXT_ARRAY_NEW == vp->next || NEXT_ARRAY_ELEMENT == vp->next || NEXT_ARRAY_COMMA == vp->next) {
+                        len = (long)vp->pcnt;
+                    }
+                } else if (RUBY_T_ARRAY == rb_type(vp->val)) {
+                    len = RARRAY_LEN(vp->val);
+                }
+                if (0 <= len) {
                     if (end <= p + 12) {
                         break;
                     }
-                    p += snprintf(p, end - p, "[%ld]", RARRAY_LEN(vp->val));
+                    p += snprintf(p, end - p, "[%ld]", len);
                 }
             }
         }

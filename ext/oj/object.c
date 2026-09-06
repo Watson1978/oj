@@ -642,6 +642,17 @@ static void end_hash(ParseInfo pi) {
     TRACE_PARSE_HASH_END(pi->options.trace, pi);
 }
 
+// Circular references register the Array by its ^i id as the first element,
+// so with circular on the Array has to exist from the opening bracket.
+// Otherwise the elements are buffered and the Array is built at array_end.
+static VALUE start_array(ParseInfo pi) {
+    TRACE_PARSE_IN(pi->options.trace, "start_array", pi);
+    if (0 != pi->circ_array) {
+        return rb_ary_new();
+    }
+    return Qnil;
+}
+
 static void array_append_cstr(ParseInfo pi, const char *str, size_t len, const char *orig) {
     volatile VALUE rval = Qnil;
 
@@ -658,20 +669,20 @@ static void array_append_cstr(ParseInfo pi, const char *str, size_t len, const c
             long i = read_long(str + 2, len - 2);
 
             if (0 < i) {
-                rb_ary_push(stack_peek(&pi->stack)->val, oj_circ_array_get(pi->circ_array, i));
+                oj_array_append(pi, oj_circ_array_get(pi->circ_array, i));
                 return;
             }
         }
     }
     rval = str_to_value(pi, str, len, orig);
-    rb_ary_push(stack_peek(&pi->stack)->val, rval);
+    oj_array_append(pi, rval);
     TRACE_PARSE_CALL(pi->options.trace, "append_string", pi, rval);
 }
 
 static void array_append_num(ParseInfo pi, NumInfo ni) {
     volatile VALUE rval = oj_num_as_value(ni);
 
-    rb_ary_push(stack_peek(&pi->stack)->val, rval);
+    oj_array_append(pi, rval);
     TRACE_PARSE_CALL(pi->options.trace, "append_number", pi, rval);
 }
 
@@ -687,6 +698,7 @@ static void add_num(ParseInfo pi, NumInfo ni) {
 
 void oj_set_object_callbacks(ParseInfo pi) {
     oj_set_strict_callbacks(pi);
+    pi->start_array       = start_array;
     pi->end_hash          = end_hash;
     pi->start_hash        = start_hash;
     pi->hash_set_cstr     = hash_set_cstr;

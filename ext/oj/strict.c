@@ -74,6 +74,16 @@ static void hash_end(ParseInfo pi) {
 }
 
 static void array_end(ParseInfo pi) {
+    ValStack stack = &pi->stack;
+    Val      array = stack_peek(stack);
+
+    if (Qnil == array->val) {
+        size_t cnt = array->pcnt;
+
+        array->val = rb_ary_new_from_values((long)cnt, stack->pairs + stack->pcnt - cnt);
+        stack->pcnt -= cnt;
+        array->pcnt = 0;
+    }
     TRACE_PARSE_ARRAY_END(pi->options.trace, pi);
 }
 
@@ -148,15 +158,16 @@ static void hash_set_value(ParseInfo pi, Val parent, VALUE value) {
     TRACE_PARSE_CALL(pi->options.trace, "set_value", pi, value);
 }
 
+// The Array is built at array_end from the buffered elements.
 static VALUE start_array(ParseInfo pi) {
     TRACE_PARSE_IN(pi->options.trace, "start_array", pi);
-    return rb_ary_new();
+    return Qnil;
 }
 
 static void array_append_cstr(ParseInfo pi, const char *str, size_t len, const char *orig) {
     volatile VALUE rstr = oj_cstr_to_value(str, len, (size_t)pi->options.cache_str);
 
-    rb_ary_push(stack_peek(&pi->stack)->val, rstr);
+    oj_array_append(pi, rstr);
     TRACE_PARSE_CALL(pi->options.trace, "append_string", pi, rstr);
 }
 
@@ -167,12 +178,12 @@ static void array_append_num(ParseInfo pi, NumInfo ni) {
         oj_set_error_at(pi, oj_parse_error_class, __FILE__, __LINE__, "not a number or other value");
     }
     v = oj_num_as_value(ni);
-    rb_ary_push(stack_peek(&pi->stack)->val, v);
+    oj_array_append(pi, v);
     TRACE_PARSE_CALL(pi->options.trace, "append_number", pi, v);
 }
 
 static void array_append_value(ParseInfo pi, VALUE value) {
-    rb_ary_push(stack_peek(&pi->stack)->val, value);
+    oj_array_append(pi, value);
     TRACE_PARSE_CALL(pi->options.trace, "append_value", pi, value);
 }
 

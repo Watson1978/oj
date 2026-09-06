@@ -37,7 +37,7 @@ typedef struct _val {
     OddArgs        odd_args;
     size_t         klen;
     size_t         clen;
-    size_t         pcnt;  // VALUEs this open hash holds in the stack pair buffer
+    size_t         pcnt;  // VALUEs this open hash or array holds in the stack pair buffer
     char           next;  // ValNext
     char           k1;    // first original character in the key
     char           kalloc;
@@ -48,10 +48,12 @@ typedef struct _val {
 typedef struct _valStack {
     struct _val base[STACK_INC];
     VALUE       pbase[PAIR_BASE_CNT];  // initial buffer for pairs
-    // Flat key/value pair buffer for hash modes that build each Hash in one
-    // rb_hash_bulk_insert at the closing brace instead of one rb_hash_aset
-    // per pair. Nesting is strictly LIFO so each open hash's pairs occupy
-    // the top of the buffer; the per-hash count lives in its Val's clen.
+    // Flat buffer for modes that build each Hash in one rb_hash_bulk_insert
+    // at the closing brace and each Array in one rb_ary_new_from_values at
+    // the closing bracket instead of one rb_hash_aset or rb_ary_push per
+    // entry. Nesting is strictly LIFO so each open container's entries
+    // occupy the top of the buffer; the per-container count lives in its
+    // Val's pcnt.
     VALUE *pairs;
     size_t pcnt;  // number of live VALUEs in pairs
     size_t pend;  // capacity of pairs in VALUEs
@@ -182,21 +184,21 @@ inline static Val stack_pop(ValStack stack) {
     return 0;
 }
 
-// Append one key/value pair to the pair buffer. The same GC discipline as
-// stack_push: the allocation happens outside the mutex (it can trigger a GC
-// which takes the mutex in stack_mark) and the buffer pointer only changes
-// under the mutex.
-inline static void stack_pair_push(ValStack stack, VALUE key, VALUE value) {
-    if (stack->pend <= stack->pcnt + 2) {
-        size_t cnt = stack->pend * 2;
+// Make room for cnt more VALUEs in the pair buffer. The same GC discipline
+// as stack_push: the allocation happens outside the mutex (it can trigger a
+// GC which takes the mutex in stack_mark) and the buffer pointer only
+// changes under the mutex.
+inline static void stack_pairs_reserve(ValStack stack, size_t cnt) {
+    if (stack->pend <= stack->pcnt + cnt) {
+        size_t size = stack->pend * 2;
         VALUE *pairs;
 
         if (stack->pbase == stack->pairs) {
-            pairs = OJ_R_ALLOC_N(VALUE, cnt);
+            pairs = OJ_R_ALLOC_N(VALUE, size);
             memcpy(pairs, stack->pairs, sizeof(VALUE) * stack->pcnt);
         } else {
             pairs = stack->pairs;
-            OJ_R_REALLOC_N(pairs, VALUE, cnt);
+            OJ_R_REALLOC_N(pairs, VALUE, size);
         }
 #ifdef HAVE_PTHREAD_MUTEX_INIT
         pthread_mutex_lock(&stack->mutex);
@@ -204,16 +206,26 @@ inline static void stack_pair_push(ValStack stack, VALUE key, VALUE value) {
         rb_mutex_lock(stack->mutex);
 #endif
         stack->pairs = pairs;
-        stack->pend  = cnt;
+        stack->pend  = size;
 #ifdef HAVE_PTHREAD_MUTEX_INIT
         pthread_mutex_unlock(&stack->mutex);
 #else
         rb_mutex_unlock(stack->mutex);
 #endif
     }
+}
+
+inline static void stack_pair_push(ValStack stack, VALUE key, VALUE value) {
+    stack_pairs_reserve(stack, 2);
     stack->pairs[stack->pcnt]     = key;
     stack->pairs[stack->pcnt + 1] = value;
     stack->pcnt += 2;
+}
+
+inline static void stack_value_push(ValStack stack, VALUE value) {
+    stack_pairs_reserve(stack, 1);
+    stack->pairs[stack->pcnt] = value;
+    stack->pcnt++;
 }
 
 extern const char *oj_stack_next_string(ValNext n);
